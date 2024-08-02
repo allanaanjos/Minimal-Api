@@ -1,21 +1,92 @@
+using System.Text;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.IdentityModel.Tokens;
+using MinimalApi.Configure;
 using MinimalApi.Data.Db;
 using MinimalApi.Domain.Entities;
 using MinimalApi.Domain.Services;
 using MinimalApi.Domain.ViewModels;
 using MinimalApi.Interface;
 using MinimalApi.ViewModels;
+using Microsoft.OpenApi.Models;
 
 #region Build
 var builder = WebApplication.CreateBuilder(args);
 
+#region JwtBeare
+var key = builder.Configuration.GetSection("Jwt:Key").Value;
+var issuer = builder.Configuration.GetSection("Jwt:Issuer").Value;
+var audience = builder.Configuration.GetSection("Jwt:Audience").Value;
+
+var keyBytes = Encoding.UTF8.GetBytes(key);
+
+builder.Services.AddAuthentication(options =>
+{
+
+    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+
+}).AddJwtBearer(opt =>
+{
+
+    opt.TokenValidationParameters = new TokenValidationParameters
+    {
+        ValidateLifetime = true,
+        ValidateIssuer = true,
+        ValidateAudience = true,
+        ValidateIssuerSigningKey = true,
+        ValidIssuer = issuer,
+        ValidAudience = audience,
+        IssuerSigningKey = new SymmetricSecurityKey(keyBytes)
+
+    };
+});
+#endregion
+
+builder.Services.AddSingleton<GerarToken>();
 builder.Services.AddScoped<IAdministradorServices, AdministradorServices>();
 builder.Services.AddScoped<IVeiculosServices, VeiculosServices>();
 builder.Services.AddDbContext<AppDbContext>();
-
-
+builder.Services.AddAuthorization();
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+
+#region SwaggerConfigure
+builder.Services.AddSwaggerGen(opt => 
+{
+    opt.SwaggerDoc("v1", new OpenApiInfo
+    {
+        Title = "Minha API",
+        Version = "v1",
+        Description = "Uma Minimal-Api de veiculos e outros serviços"
+    });
+
+    opt.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+    {
+        Name = "Authorization",
+        Type = SecuritySchemeType.Http,
+        Scheme = "Bearer",
+        BearerFormat = "JWT",
+        In = ParameterLocation.Header,
+        Description = "Insira o token JWT desta maneira: `Bearer {seu token}`"
+    });
+
+    opt.AddSecurityRequirement(new OpenApiSecurityRequirement
+    {
+        {
+            new OpenApiSecurityScheme
+            {
+                Reference = new OpenApiReference
+                {
+                    Type = ReferenceType.SecurityScheme,
+                    Id = "Bearer"
+                }
+            },
+            new string[] {}
+        }
+    });
+});
+#endregion
 
 var app = builder.Build();
 #endregion
@@ -25,53 +96,70 @@ app.MapGet("/", () => Results.Json(new Home()));
 #endregion
 
 #region Administrador
-app.MapPost("/v1/administrador/login", ([FromBody] LoginViewModel loginModel, [FromServices] IAdministradorServices services) =>
+app.MapPost("/v1/administrador/login", ([FromBody] LoginViewModel loginModel, GerarToken tokenService, IAdministradorServices services) =>
 {
-    if (services.Login(loginModel) != null)
+    var administrador = services.Login(loginModel);
+    if (administrador != null)
     {
-        return Results.Ok("Login com Sucesso!!");
+        var userToken = tokenService.GenerateToken(administrador.Email, administrador.Perfil);
+        return Results.Ok(new
+        {
+            token = userToken
+        });
     }
     else
     {
         return Results.Unauthorized();
     }
-});
+}).AllowAnonymous().WithTags("Administrador").WithSummary("Entrar como Administrador");
 
-
-app.MapPost("/v1/administrador/Criar", ([FromBody]CriarAdministradorViewModel model, [FromServices]IAdministradorServices service) =>
+app.MapPost("/v1/administrador/Criar", ([FromBody] CriarAdministradorViewModel model,
+[FromServices] IAdministradorServices service) =>
 {
-    if (model is null)
-        return Results.BadRequest("Não foi possível criar o administrador");
+    if (string.IsNullOrEmpty(model.Email) || string.IsNullOrEmpty(model.Senha) || string.IsNullOrEmpty(model.Perfil))
+        return Results.BadRequest("Todos os campos são Obrigatórios");
 
-   var data = service.Criar(model);
+
+    var data = service.Criar(model);
 
     return Results.Ok("Administrador cadastrado com sucesso.");
-});
 
+}).RequireAuthorization().WithTags("Administrador").WithSummary("Criar um novo Administrador");
 
-app.MapGet("/v1/administradores", (IAdministradorServices services) => services.Todos());
+app.MapGet("/v1/administradores", (IAdministradorServices services) => services.Todos())
+.RequireAuthorization()
+.WithTags("Administrador")
+.WithSummary("Buscar todos os Administradores");
 
-
-app.MapGet("/v1/administrador/buscar-por-id", (int id, IAdministradorServices services) => 
+app.MapPut("/Administrador/{id}", (int id, CriarAdministradorViewModel model, [FromServices] IAdministradorServices services) =>
 {
-    if(id <= 0)
-       return Results.BadRequest("ID Inválido");
+    if (id == 0) return Results.BadRequest("ID Inválido");
+
+    var data = services.Atualizar(id, model);
+
+    return Results.Ok(data);
+
+}).RequireAuthorization().WithTags("Administrador").WithSummary("Atualizar um Administrador");
+
+app.MapGet("/v1/administrador/{id}", (int id, IAdministradorServices services) =>
+{
+    if (id <= 0)
+        return Results.BadRequest("ID Inválido");
 
     var model = services.BuscarPorId(id);
 
     return Results.Ok(model);
-});
+}).RequireAuthorization().WithTags("Administrador").WithSummary("Buscar um Administrador por ID");
 
-
-app.MapDelete("/v1/administrador/remover", (int id, IAdministradorServices services) => 
+app.MapDelete("/v1/administrador/remover", (int id, IAdministradorServices services) =>
 {
-   if(id <= 0)
-     return Results.BadRequest("ID Inválido");
+    if (id <= 0)
+        return Results.BadRequest("ID Inválido");
 
     var data = services.Remover(id);
 
     return Results.Ok(data);
-});
+}).RequireAuthorization().WithTags("Administrador").WithSummary("Remover um Administrador");
 #endregion
 
 
@@ -81,8 +169,8 @@ app.MapDelete("/v1/administrador/remover", (int id, IAdministradorServices servi
 app.MapPost("/v1/veiculos/criar", ([FromBody] VeiculoViewModel model, [FromServices] IVeiculosServices services) =>
 {
 
-    if (model is null)
-        return Results.BadRequest("Não foi possivel criar seu veiculo");
+    if (string.IsNullOrEmpty(model.Nome) || string.IsNullOrEmpty(model.Marca) || model.Ano <= 0)
+        return Results.BadRequest("Todos os campos são Obrigatório");
 
     var veiculo = new Veiculos
     {
@@ -97,22 +185,26 @@ app.MapPost("/v1/veiculos/criar", ([FromBody] VeiculoViewModel model, [FromServi
     return Results.Created($"/v1/veiculos/{veiculo.id}", veiculo);
 
 
-});
+}).RequireAuthorization().WithTags("Veiculos").WithSummary("Criar um novo Veiculo");
 
-app.MapGet("/v1/veiculos", ([FromServices] IVeiculosServices services) => services.TodosOsVeiculos());
-
-app.MapGet("/v1/veiculos/buscar-por-id", ([FromQuery] int id, [FromServices] IVeiculosServices services) =>
+app.MapGet("/v1/veiculos", ([FromQuery] int pagina, [FromServices] IVeiculosServices services) =>
 {
-    if (id == 0)
-        return Results.BadRequest("ID Inválido");
+    var data = services.TodosOsVeiculos(pagina);
+
+    return Results.Ok(data);
+}).RequireAuthorization().WithTags("Veiculos").WithSummary("Buscar todos os Veiculos");
+
+app.MapGet("/v1/veiculos/{id}", ([FromQuery] int id, [FromServices] IVeiculosServices services) =>
+{
+    if (id <= 0) return Results.BadRequest("ID Inválido");
 
     var data = services.BuscarVeiculoPorId(id);
 
-    if (data is null)
-        return Results.NotFound("Veiculo não encontrado.");
+    if (data is null) return Results.NotFound("Veiculo não encontrado.");
 
     return Results.Ok(data);
-});
+
+}).RequireAuthorization().WithTags("Veiculos").WithSummary("Buscar um veiculo por ID");
 
 app.MapPut("/v1/veiculos/atualizar", (int id, VeiculoViewModel model, IVeiculosServices services) =>
 {
@@ -122,7 +214,7 @@ app.MapPut("/v1/veiculos/atualizar", (int id, VeiculoViewModel model, IVeiculosS
     var data = services.AtualizarVeiculo(id, model);
 
     return Results.Ok(data);
-});
+}).RequireAuthorization().WithTags("Veiculos").WithSummary("Atulizar um Veiculo");
 
 app.MapDelete("/v1/veiculos/remover", ([FromQuery] int id, [FromServices] IVeiculosServices services) =>
 {
@@ -131,7 +223,7 @@ app.MapDelete("/v1/veiculos/remover", ([FromQuery] int id, [FromServices] IVeicu
 
     var data = services.RemoverVeiculo(id);
     return Results.Ok(data);
-});
+}).RequireAuthorization().WithTags("Veiculos").WithSummary("Remover um veiculo");
 
 
 #endregion
@@ -139,6 +231,11 @@ app.MapDelete("/v1/veiculos/remover", ([FromQuery] int id, [FromServices] IVeicu
 #region App
 app.UseSwagger();
 app.UseSwaggerUI();
+app.UseAuthentication();
+app.UseAuthorization();
 
 app.Run();
-#endregion
+#endregion 
+
+
+

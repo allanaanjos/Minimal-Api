@@ -9,7 +9,8 @@ namespace MinimalApi.Interface
         Administrador? Login(LoginViewModel model);
         Administrador Criar(CriarAdministradorViewModel model);
         List<Administrador> Todos();
-        Administrador BuscarPorId(int id);
+        Administrador BuscarPorId(int id); 
+        Administrador Atualizar(int id, CriarAdministradorViewModel model);
         Administrador Remover(int id);
     }
 }

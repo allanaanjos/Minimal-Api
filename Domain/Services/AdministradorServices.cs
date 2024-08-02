@@ -17,8 +17,7 @@ namespace MinimalApi.Domain.Services
 
         public Administrador? Login(LoginViewModel model)
         {
-            var adm = context.Administradores.Where(x => x.Email == model.Email && x.Senha == model.Passworld).FirstOrDefault();
-            return adm;
+            return context.Administradores.FirstOrDefault(x => x.Email == model.Email || x.Senha == model.Senha);
         }
 
         public Administrador Criar(CriarAdministradorViewModel model)
@@ -26,6 +25,7 @@ namespace MinimalApi.Domain.Services
             if(model is null)
                throw new InvalidOperationException("Administrador Inválido");
 
+            
             var adm = new Administrador
             {
                 Email = model.Email,
@@ -52,6 +52,25 @@ namespace MinimalApi.Domain.Services
               throw new Exception("Administrador não encontrado");
               
            return data;
+        }
+
+        public Administrador Atualizar(int id, CriarAdministradorViewModel model)
+        {
+            var data = context.Administradores.Find(id);
+
+            if(data is null) throw new InvalidDataException("Administrador Inválido");
+
+            var administrador = new Administrador
+            {
+                Email = model.Email,
+                Senha = model.Senha,
+                Perfil = model.Perfil
+                
+            };
+
+            context.SaveChanges();
+
+            return data;
         }
 
         public Administrador Remover(int id)
