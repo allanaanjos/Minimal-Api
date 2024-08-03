@@ -29,10 +29,5 @@ namespace MinimalApi.Data.Db
 
         }
 
-        protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
-        {
-            optionsBuilder.UseSqlServer
-              ("Server=DESKTOP-MA59988\\SQLEXPRESS;Database=Minimal-Api;Trusted_Connection=True;TrustServerCertificate=True;");
-        }
     }
 }
