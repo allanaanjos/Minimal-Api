@@ -25,7 +25,8 @@ namespace MinimalApi.Configure
                 claims: new[]
                 {
                     new Claim("Email", userEmail),
-                    new Claim("Perfil", userPerfil)
+                    new Claim("Perfil", userPerfil),
+                    new Claim(ClaimTypes.Role, userPerfil)
                 },
                 expires: DateTime.Now.AddHours(3),
                 signingCredentials: creds);

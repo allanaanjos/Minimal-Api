@@ -10,6 +10,7 @@ using MinimalApi.Domain.ViewModels;
 using MinimalApi.Interface;
 using MinimalApi.ViewModels;
 using Microsoft.OpenApi.Models;
+using Microsoft.AspNetCore.Authorization;
 
 #region Build
 var builder = WebApplication.CreateBuilder(args);
@@ -111,7 +112,10 @@ app.MapPost("/v1/administrador/login", ([FromBody] LoginViewModel loginModel, Ge
     {
         return Results.Unauthorized();
     }
-}).AllowAnonymous().WithTags("Administrador").WithSummary("Entrar como Administrador");
+}).AllowAnonymous()
+.WithTags("Administrador")
+.WithSummary("Entrar como Administrador");
+
 
 app.MapPost("/v1/administrador/Criar", ([FromBody] CriarAdministradorViewModel model,
 [FromServices] IAdministradorServices service) =>
@@ -124,12 +128,16 @@ app.MapPost("/v1/administrador/Criar", ([FromBody] CriarAdministradorViewModel m
 
     return Results.Ok("Administrador cadastrado com sucesso.");
 
-}).RequireAuthorization().WithTags("Administrador").WithSummary("Criar um novo Administrador");
+}).RequireAuthorization(new AuthorizeAttribute {Roles = "Adm"})
+.WithTags("Administrador")
+.WithSummary("Criar um novo Administrador");
+
 
 app.MapGet("/v1/administradores", (IAdministradorServices services) => services.Todos())
-.RequireAuthorization()
+.RequireAuthorization(new AuthorizeAttribute {Roles = "Adm"})
 .WithTags("Administrador")
 .WithSummary("Buscar todos os Administradores");
+
 
 app.MapPut("/Administrador/{id}", (int id, CriarAdministradorViewModel model, [FromServices] IAdministradorServices services) =>
 {
@@ -139,7 +147,11 @@ app.MapPut("/Administrador/{id}", (int id, CriarAdministradorViewModel model, [F
 
     return Results.Ok(data);
 
-}).RequireAuthorization().WithTags("Administrador").WithSummary("Atualizar um Administrador");
+})
+.RequireAuthorization(new AuthorizeAttribute {Roles = "Adm"})
+.WithTags("Administrador")
+.WithSummary("Atualizar um Administrador");
+
 
 app.MapGet("/v1/administrador/{id}", (int id, IAdministradorServices services) =>
 {
@@ -149,7 +161,10 @@ app.MapGet("/v1/administrador/{id}", (int id, IAdministradorServices services) =
     var model = services.BuscarPorId(id);
 
     return Results.Ok(model);
-}).RequireAuthorization().WithTags("Administrador").WithSummary("Buscar um Administrador por ID");
+}).RequireAuthorization(new AuthorizeAttribute {Roles = "Adm"})
+.WithTags("Administrador")
+.WithSummary("Buscar um Administrador por ID");
+
 
 app.MapDelete("/v1/administrador/remover", (int id, IAdministradorServices services) =>
 {
@@ -159,7 +174,10 @@ app.MapDelete("/v1/administrador/remover", (int id, IAdministradorServices servi
     var data = services.Remover(id);
 
     return Results.Ok(data);
-}).RequireAuthorization().WithTags("Administrador").WithSummary("Remover um Administrador");
+}).RequireAuthorization(new AuthorizeAttribute {Roles = "Adm"})
+.WithTags("Administrador")
+.WithSummary("Remover um Administrador");
+
 #endregion
 
 
@@ -185,14 +203,20 @@ app.MapPost("/v1/veiculos/criar", ([FromBody] VeiculoViewModel model, [FromServi
     return Results.Created($"/v1/veiculos/{veiculo.id}", veiculo);
 
 
-}).RequireAuthorization().WithTags("Veiculos").WithSummary("Criar um novo Veiculo");
+}).RequireAuthorization(new AuthorizeAttribute {Roles = "Adm, Editor"})
+.WithTags("Veiculos")
+.WithSummary("Criar um novo Veiculo");
+
 
 app.MapGet("/v1/veiculos", ([FromQuery] int pagina, [FromServices] IVeiculosServices services) =>
 {
     var data = services.TodosOsVeiculos(pagina);
 
     return Results.Ok(data);
-}).RequireAuthorization().WithTags("Veiculos").WithSummary("Buscar todos os Veiculos");
+}).RequireAuthorization(new AuthorizeAttribute {Roles = "Adm, Editor"})
+.WithTags("Veiculos")
+.WithSummary("Buscar todos os Veiculos");
+
 
 app.MapGet("/v1/veiculos/{id}", ([FromQuery] int id, [FromServices] IVeiculosServices services) =>
 {
@@ -204,7 +228,10 @@ app.MapGet("/v1/veiculos/{id}", ([FromQuery] int id, [FromServices] IVeiculosSer
 
     return Results.Ok(data);
 
-}).RequireAuthorization().WithTags("Veiculos").WithSummary("Buscar um veiculo por ID");
+}).RequireAuthorization(new AuthorizeAttribute {Roles = "Adm, Editor"})
+.WithTags("Veiculos")
+.WithSummary("Buscar um veiculo por ID");
+
 
 app.MapPut("/v1/veiculos/atualizar", (int id, VeiculoViewModel model, IVeiculosServices services) =>
 {
@@ -214,7 +241,10 @@ app.MapPut("/v1/veiculos/atualizar", (int id, VeiculoViewModel model, IVeiculosS
     var data = services.AtualizarVeiculo(id, model);
 
     return Results.Ok(data);
-}).RequireAuthorization().WithTags("Veiculos").WithSummary("Atulizar um Veiculo");
+}).RequireAuthorization(new AuthorizeAttribute {Roles = "Adm, Editor"})
+.WithTags("Veiculos")
+.WithSummary("Atulizar um Veiculo");
+
 
 app.MapDelete("/v1/veiculos/remover", ([FromQuery] int id, [FromServices] IVeiculosServices services) =>
 {
@@ -223,7 +253,9 @@ app.MapDelete("/v1/veiculos/remover", ([FromQuery] int id, [FromServices] IVeicu
 
     var data = services.RemoverVeiculo(id);
     return Results.Ok(data);
-}).RequireAuthorization().WithTags("Veiculos").WithSummary("Remover um veiculo");
+}).RequireAuthorization(new AuthorizeAttribute {Roles = "Adm"})
+.WithTags("Veiculos")
+.WithSummary("Remover um veiculo");
 
 
 #endregion
